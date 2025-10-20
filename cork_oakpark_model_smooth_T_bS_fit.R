@@ -87,7 +87,9 @@ b_S_func <- function(T, b_opt=10, T_opt=25, sigma_T=5) {
 
 sech_kernel <- function(x, s) {
   2 / (s * (exp(2 * x / s) + 2 + exp(-2 * x / s)))
-}
+}    # JY: Is this right?  Kernel is (1/2*s) * sech(x/s)^2
+     # That sech expands to 4 / (exp(-x/s) + exp(x/s))^2
+     # which makes the whole thing (2/s) / (exp(-x/s) + exp(x/s))^2
 
 # Temperatures from fitted model
 T_cork_func <- function(t) a_cork - b_cork * cos(2 * pi * t / 365 - delta_cork)
@@ -145,7 +147,8 @@ T_series <- if(selected_location == "Cork") {
 
 # Plant abundance (Brière)
 hatP_series <- briere_P(T_series, a_B, T_min, T_max, b_briere)
-P_tot <- hatP_series
+P_tot <- hatP_series    # JY: Is this right?  Briere function gives daily growth, 
+#           so P_total is the cumulative sum from the start of the season
 
 P_I <- numeric(n_all); P_S <- numeric(n_all)
 A_S <- numeric(n_all); A_I <- numeric(n_all)
@@ -165,6 +168,10 @@ svec <- 0:tau_m
 K_of_s <- function(s) {
   if(K_choice=="indicator") ifelse(s >= t_D, 1, 0) else sech_kernel(s, sech_s)
 }
+
+# JY: Is this right?  Two things to check:
+#     1/ Kernel should be a function of temperature, but I don't see this. 
+#     2/ Kernel should be a function  of the cumulative development. This development is driven by temperature.  
 rawK <- K_of_s(svec)
 # Optional: I don't know if we have to normalise K(x)
 # if so, then I think we should use:
