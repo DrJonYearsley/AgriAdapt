@@ -8,7 +8,7 @@
 
 
 
-Met Eirean data files downloaded from https://data.gov.ie/dataset/moore-park-daily-data (10th Feb 2026)
+Met Eirean data files downloaded from https://data.gov.ie/dataset/moore-park-daily-data and https://data.gov.ie/dataset/oak-park-hourly-data  (10th Feb 2026)
 
 ## Variables in the files
 
@@ -17,8 +17,8 @@ Daily Elements:
 | ID  | ELEMENT | Unit |     
 |--------|------------------------------|-----|
 |rain	 | Precipitation |Amount |mm|
-|maxtp    |Maximum Air Temperature	|   °C	  |
-|mintp         	Minimum  Air Temperature |°C |
+|maxtp    | Maximum Air Temperature	|   °C	  |
+|mintp    |     	Minimum  Air Temperature |°C |
 |gmin	|	09utc Grass Minimum Temperature		|°C |
 |soil	|	Mean 10cm Soil Temperature| °C|	
 |wdsp	|	Mean Wind Speed	|    knot|
