@@ -20,17 +20,20 @@ library(tidyr)
 library(lubridate)
 library(patchwork)
 
-setwd("C:/Users/blake/Desktop/R_Code")
-load("C:/Users/blake/Desktop/R_Code/meteo_minmaxtemps_2024.RData")
+year_select <- sample(2010:2024, 1)
 
-# 2024 temp data selected for now to see how things behave
+# reset to your own work directory where temp files are
+setwd("C:/Users/blake/Desktop/R_Code")
+
+# load temp file for year_select
+load(paste0("C:/Users/blake/Desktop/R_Code/meteo_minmaxtemps_", 
+            year_select, ".RData"))
+message("year chosen: ", year_select)
 
 # aphid DD parameters gotten from 
 # https://ipm.ucanr.edu/PHENOLOGY/ma-english_grain_aphid.html
 temp_baseline  <- 4
 temp_threshold <- 150
-
-model_year <- unique(year(meteo$Dates))[1]
 
 # Oakpark temperature data
 tower_locations <- data.frame(
@@ -49,7 +52,7 @@ closest_to_oakpark <- stations %>% slice_min(dist_oakpark, n = 1)
 
 meteo_oakpark <- meteo %>%
   semi_join(closest_to_oakpark, by = c("east","north")) %>%
-  filter(year(Dates) == model_year) %>%
+  filter(year(Dates) == year_select) %>%
   arrange(Dates)
 
 # mean daily temp data
@@ -79,26 +82,42 @@ for(i in 1:N){
 }
 
 # parameters
-b_opt   <- runif(1, 1, 8)
-T_opt   <- runif(1, 20, 35)
-sigma_T <- runif(1, 1, 10)
+b_opt   <- 11.3
+T_opt   <- 30.1
+sigma_T <- 8.3
 
-sigma_SP <- runif(1, 0.1, 0.5)
-sigma_IP <- runif(1, 0.1, 0.5)
-sigma_SA <- runif(1, 0.1, 1)
-sigma_IA <- runif(1, 0.1, 1)
+# sigma_SP + sigma_IP \leq 1
+# so P_I and P_S are well-defined
+sigma_SP <- 0.12
+sigma_IP <- 0.31
+sigma_SA <- 0.76
+sigma_IA <- 0.93
 
-delta_P <- runif(1, 1, 30)
-delta_A <- runif(1, 1, 30)
+delta_P <- 1.1
+delta_A <- 6.9
 
 tau_P <- 7
-tau_A <- 14
+tau_A <- 9
 
-Ptot  <- runif(1,100,1000)
-Gamma <- runif(1,10,100)
+Ptot  <- 5200
+Gamma <- 330
 
 # fecundity
 b_S <- b_opt * exp(-(Tseries - T_opt)^2 / (2 * sigma_T^2))
+
+df_bS <- data.frame(
+  day = day,
+  b_S = b_S
+)
+
+ggplot(df_bS, aes(x = day, y = b_S)) +
+  geom_line(color = "darkred", linewidth = 1) +
+  theme_minimal() +
+  labs(
+    x = "Day of Year",
+    y = "Fecundity",
+    title = "",
+  )
 
 # state variables
 P_I  <- numeric(N)
@@ -111,9 +130,10 @@ Phi_P <- numeric(N)
 
 # growing season
 sow_day     <- 32    # start of Feb
-harvest_day <- 243   # end of Aug
+harvest_day <- 240   # end of Aug
 
 # primary infection day between 10 and 40 days of sow day
+# between when leaves are visible to stem elongation
 primary_day <- round(runif(1, sow_day + 10, sow_day + 40))
 
 # simulation
@@ -152,7 +172,7 @@ for(t in 1:(N-1)){
   
   # primary infection
   if(t == primary_day){
-    A_obs <- round(runif(1, 2, 15))
+    A_obs <- round(runif(1, 2, 40))
     A_I[t] <- sample(1:(A_obs-1), 1)   # at least 1 infectious
     A_S[t] <- A_obs - A_I[t]           # at least 1 susceptible
   }
@@ -237,28 +257,26 @@ p_r <- ggplot(df, aes(day, r)) +
   theme_minimal() +
   labs(title = "r")
 
-p_aphids / p_plants
+SI_dynamics <- p_aphids / p_plants
+SI_dynamics | p_total_aphids
+message("year chosen: ", year_select)
 
-p_infected_plants <- ggplot(df, aes(day, P_I)) +
-  geom_line(linewidth = 1, colour = "darkblue") +
-  geom_vline(data = vlines, aes(xintercept = day), linetype = "dashed", colour = "black") +
-  theme_minimal() +
-  labs(title = "Infected Plant Dynamics", y = "Count", x = "Day")
+#p_infected_plants <- ggplot(df, aes(day, P_I)) +
+#  geom_line(linewidth = 1, colour = "darkblue") +
+#  geom_vline(data = vlines, aes(xintercept = day), linetype = "dashed", colour = "black") +
+#  theme_minimal() +
+#  labs(title = "Infected Plant Dynamics", y = "Count", x = "Day")
 
-p_susceptible_aphids <- ggplot(df, aes(day, A_S)) +
-  geom_line(linewidth = 1, colour = "gold") +
-  geom_vline(data = vlines, aes(xintercept = day), linetype = "dashed", colour = "black") +
-  theme_minimal() +
-  labs(title = "Susceptible Aphid Dynamics", y = "Count", x = "Day")
+#p_susceptible_aphids <- ggplot(df, aes(day, A_S)) +
+#  geom_line(linewidth = 1, colour = "gold") +
+#  geom_vline(data = vlines, aes(xintercept = day), linetype = "dashed", colour = "black") +
+#  theme_minimal() +
+#  labs(title = "Susceptible Aphid Dynamics", y = "Count", x = "Day")
 
-p_infected_aphids <- ggplot(df, aes(day, A_I)) +
-  geom_line(linewidth = 1, colour = "darkblue") +
-  geom_vline(data = vlines, aes(xintercept = day), linetype = "dashed", colour = "black") +
-  theme_minimal() +
-  labs(title = "Infected Aphid Dynamics", y = "Count", x = "Day")
+#p_infected_aphids <- ggplot(df, aes(day, A_I)) +
+#  geom_line(linewidth = 1, colour = "darkblue") +
+#  geom_vline(data = vlines, aes(xintercept = day), linetype = "dashed", colour = "black") +
+#  theme_minimal() +
+#  labs(title = "Infected Aphid Dynamics", y = "Count", x = "Day")
 
-p_infected_plants / p_susceptible_aphids / p_infected_aphids
-
-
-
-
+#p_infected_plants / p_susceptible_aphids / p_infected_aphids
