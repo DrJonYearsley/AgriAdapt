@@ -1,5 +1,16 @@
-# spring barley and S. avenae
-# primary invasion count could be the first observed alate aphids in suction tower dataset
+# proposed model for spring barley and S. avenae
+# with start date 1st Jan, end date 31st Dec
+
+# growing season:
+# sow day -> harvest day
+# plant dynamics only within this interval
+
+# primary invasion/infection day: 
+# where A_I > 0 for first time
+# primary invasion/infection count could be the first observed alate 
+# aphid in suction tower dataset of given year
+# aphids can grow and decline past harvest day?
+
 
 rm(list = ls())
 
@@ -12,9 +23,13 @@ library(patchwork)
 setwd("C:/Users/blake/Desktop/R_Code")
 load("C:/Users/blake/Desktop/R_Code/meteo_minmaxtemps_2024.RData")
 
-# aphid DD parameters
+# 2024 temp data selected for now to see how things behave
+
+# aphid DD parameters gotten from 
+# https://ipm.ucanr.edu/PHENOLOGY/ma-english_grain_aphid.html
 temp_baseline  <- 4
 temp_threshold <- 150
+
 model_year <- unique(year(meteo$Dates))[1]
 
 # Oakpark temperature data
@@ -24,6 +39,7 @@ tower_locations <- data.frame(
   northings = c(101150, 179267)
 )
 
+# Euclidean distance used
 stations <- meteo %>% distinct(east, north) %>%
   rowwise() %>%
   mutate(dist_oakpark = sqrt((east - tower_locations$eastings[2])^2 +
@@ -36,6 +52,7 @@ meteo_oakpark <- meteo %>%
   filter(year(Dates) == model_year) %>%
   arrange(Dates)
 
+# mean daily temp data
 oakpark_ts <- meteo_oakpark %>%
   mutate(meanT = (TX + TN)/2) %>%
   select(Dates, meanT)
@@ -48,6 +65,18 @@ day <- 1:N
 meteo_oakpark$tavg <- (meteo_oakpark$TX + meteo_oakpark$TN)/2
 meteo_oakpark$dd <- pmax(meteo_oakpark$tavg - temp_baseline, 0)
 cum_gdd <- cumsum(meteo_oakpark$dd)
+
+# emergence times, given that start times known
+# is this good enough for telescoping,
+# or is this valid only for egg laying (overwintering/diapause)?
+
+emerge_map <- vector("list", N)
+for(i in 1:N){
+  emerge_idx <- which(cum_gdd >= cum_gdd[i] + temp_threshold)[1]
+  if(!is.na(emerge_idx)){
+    emerge_map[[emerge_idx]] <- c(emerge_map[[emerge_idx]], i)
+  }
+}
 
 # parameters
 b_opt   <- runif(1, 1, 8)
@@ -68,15 +97,6 @@ tau_A <- 14
 Ptot  <- runif(1,100,1000)
 Gamma <- runif(1,10,100)
 
-# emergence map
-emerge_map <- vector("list", N)
-for(i in 1:N){
-  emerge_idx <- which(cum_gdd >= cum_gdd[i] + temp_threshold)[1]
-  if(!is.na(emerge_idx)){
-    emerge_map[[emerge_idx]] <- c(emerge_map[[emerge_idx]], i)
-  }
-}
-
 # fecundity
 b_S <- b_opt * exp(-(Tseries - T_opt)^2 / (2 * sigma_T^2))
 
@@ -90,16 +110,16 @@ Phi_A <- numeric(N)
 Phi_P <- numeric(N)
 
 # growing season
-sow_day     <- 32    # start of February
-harvest_day <- 243   # end of August
+sow_day     <- 32    # start of Feb
+harvest_day <- 243   # end of Aug
 
-# primary infection day
+# primary infection day between 10 and 40 days of sow day
 primary_day <- round(runif(1, sow_day + 10, sow_day + 40))
 
 # simulation
 for(t in 1:(N-1)){
   
-  # days before sowing
+  # days before sowing we know everything is ~0
   if(t < sow_day){
     P_S[t+1] <- 0
     P_I[t+1] <- 0
@@ -111,7 +131,7 @@ for(t in 1:(N-1)){
     next
   }
   
-  # initialise crops on sow day
+  # initialise crops on sow day (no infectious plants, only susceptible)
   if(t == sow_day){
     P_S[t] <- Ptot
     P_I[t] <- 0
@@ -139,6 +159,10 @@ for(t in 1:(N-1)){
   
   # aphid dynamics
   if(t >= primary_day){
+    
+    # r is sum of delayed fecundity x abundance 
+    # for aphids that have emerged as adults on day t
+    
     r_t <- 0
     if(!is.null(emerge_map[[t]]) && length(emerge_map[[t]]) > 0){
       r_t <- sum(b_S[emerge_map[[t]]] * A_S[emerge_map[[t]]])
@@ -156,7 +180,7 @@ for(t in 1:(N-1)){
     A_S[t+1] <- r[t] * exp(-(A_S[t] + A_I[t]) / Gamma) + Phi_A[t] * sigma_SA * A_S[t]
   }
   
-  # after harvest, remove plants
+  # remove plants on harvest day
   if(t >= harvest_day){
     P_S[t+1] <- 0
     P_I[t+1] <- 0
@@ -234,6 +258,7 @@ p_infected_aphids <- ggplot(df, aes(day, A_I)) +
   labs(title = "Infected Aphid Dynamics", y = "Count", x = "Day")
 
 p_infected_plants / p_susceptible_aphids / p_infected_aphids
+
 
 
 
