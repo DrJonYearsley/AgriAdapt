@@ -1,3 +1,6 @@
+# spring barley and S. avenae
+# primary invasion count could be the first observed alate aphids in suction tower dataset
+
 rm(list = ls())
 
 library(ggplot2)
@@ -108,7 +111,7 @@ for(t in 1:(N-1)){
     next
   }
   
-  # initialise crops on sow_day
+  # initialise crops on sow day
   if(t == sow_day){
     P_S[t] <- Ptot
     P_I[t] <- 0
@@ -210,7 +213,6 @@ p_r <- ggplot(df, aes(day, r)) +
   theme_minimal() +
   labs(title = "r")
 
-# Combine aphid plots
 p_aphids / p_plants
 
 p_infected_plants <- ggplot(df, aes(day, P_I)) +
@@ -225,7 +227,6 @@ p_susceptible_aphids <- ggplot(df, aes(day, A_S)) +
   theme_minimal() +
   labs(title = "Susceptible Aphid Dynamics", y = "Count", x = "Day")
 
-# 3. Infected Aphids
 p_infected_aphids <- ggplot(df, aes(day, A_I)) +
   geom_line(linewidth = 1, colour = "darkblue") +
   geom_vline(data = vlines, aes(xintercept = day), linetype = "dashed", colour = "black") +
@@ -233,5 +234,6 @@ p_infected_aphids <- ggplot(df, aes(day, A_I)) +
   labs(title = "Infected Aphid Dynamics", y = "Count", x = "Day")
 
 p_infected_plants / p_susceptible_aphids / p_infected_aphids
+
 
 
