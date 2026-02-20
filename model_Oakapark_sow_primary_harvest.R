@@ -4,34 +4,35 @@
 # transmission between spring barley and S. avenae.
 # =============================================================
 
+# Anywhere where I have a query or question I've labelled #### Q ####
 
-############
-############
-#### Q1 ####
-############
-############
+###########
+###########
+#### Q ####
+###########
+###########
 
 # growing season approach?
 # sow day -> harvest day
 # plant dynamics only within this interval
 # 0 before and after
 
-############
-############
-#### Q2 ####
-############
-############
+###########
+###########
+#### Q ####
+###########
+###########
 
 # primary invasion/infection day: 
 # where A_I and/or A_S > 0 for first time (both non-zero for now)
 # primary invasion/infection abundance could be the first observed 
 # alate aphid count in the suction tower dataset for given year
 
-############
-############
-#### Q3 ####
-############
-############
+###########
+###########
+#### Q ####
+###########
+###########
 
 # aphids dynamics assumed to change past harvest day (A_S, A_I
 # can be >0 past harvest_day)
@@ -86,11 +87,11 @@ N <- nrow(oakpark_ts)
 Tseries <- oakpark_ts$meanT
 day <- 1:N
 
-############
-############
-#### Q4 ####
-############
-############
+###########
+###########
+#### Q ####
+###########
+###########
 
 # is this DD model okay for telescoping??
 
@@ -140,6 +141,32 @@ Gamma <- 100
 # fecundity
 b_S <- b_opt * exp(-(Tseries - T_opt)^2 / (2 * sigma_T^2))
 
+###########
+###########
+#### Q ####
+###########
+###########
+
+# Dean et al. (1974)
+# each row below is a different temp:
+# 10, 15, 20, 30 degrees
+
+# Mean adult life span (days)
+# S ± error
+# 17 ± 1-9
+# 22 ± 2-7
+# 22 ± 1-7
+# 19 ± 1-0
+
+# Mean no. of nymphs per female
+# N ± error
+# 33 ± 3-6
+# 46 ± 4-6
+# 61 ± 3-6
+# 33 ± 1-9
+
+# so daily nymphs per female at temperature T is N/S???
+
 # state variables
 P_I  <- numeric(N)
 P_S  <- numeric(N)
@@ -153,11 +180,11 @@ Phi_P <- numeric(N)
 sow_day     <- 32    # sow at start of Feb
 harvest_day <- 240   # harvest end of Aug
 
-############
-############
-#### Q5 ####
-############
-############
+###########
+###########
+#### Q ####
+###########
+###########
 
 # is this a good way of doing this?
 
@@ -194,6 +221,13 @@ if(extra > 0){
   end_day   <- min(N, primary_day + extra)
   if(start_day <= end_day){
     seed_days <- start_day:end_day
+
+###########
+###########
+#### Q ####
+###########
+###########
+              
     P_S[seed_days] <- Ptot  #keep as Ptot???
     P_I[seed_days] <- 0
   }
@@ -215,6 +249,13 @@ if(extra > 0){
   end_day   <- min(N, primary_day + extra)
   if(start_day <= end_day){
     seed_days <- start_day:end_day
+
+###########
+###########
+#### Q ####
+###########
+###########
+              
     # small random counts???
     A_S[seed_days] <- round(runif(length(seed_days), 1,5))
     A_I[seed_days] <- round(runif(length(seed_days), 1,5))
@@ -267,6 +308,13 @@ for(t in tau:(N-1)){
   if(t >= harvest_day){
     P_S[t+1] <- 0
     P_I[t+1] <- 0
+
+###########
+###########
+#### Q ####
+###########
+###########
+              
     # do we choose to make aphids go to 0 here???
     # A_S[t+1] <- 0 
     # A_I[t+1] <- 0
@@ -355,4 +403,6 @@ p_susceptible_aphids <- ggplot(df, aes(day, A_S)) +
   (print(p_total_aphids_sep) + print(p_susceptible_aphids))
 
 # double check that Ptot is conserved during growing season
+# if TRUE then all is okay
 all(P_I[sow_day:harvest_day] + P_S[sow_day:harvest_day] == Ptot)
+
