@@ -4,12 +4,10 @@
 # transmission between spring barley and S. avenae.
 # =============================================================
 
-# I've labelled queries or questions as #### Q #### below
-# as I don't know if these are valid or justified
 
 ############
 ############
-#### Q #####
+#### Q1 ####
 ############
 ############
 
@@ -20,7 +18,7 @@
 
 ############
 ############
-#### Q #####
+#### Q2 ####
 ############
 ############
 
@@ -31,7 +29,7 @@
 
 ############
 ############
-#### Q #####
+#### Q3 ####
 ############
 ############
 
@@ -90,7 +88,7 @@ day <- 1:N
 
 ############
 ############
-#### Q #####
+#### Q4 ####
 ############
 ############
 
@@ -157,11 +155,11 @@ harvest_day <- 240   # harvest end of Aug
 
 ############
 ############
-#### Q #####
+#### Q5 ####
 ############
 ############
 
-# is this a good way of doing this below?
+# is this a good way of doing this?
 
 # primary infection/invasion day between 10 and 40 days after sowing
 primary_day <- round(runif(1, sow_day + 10, sow_day + 40))
@@ -184,7 +182,7 @@ P_I[sow_day] <- 0
 
 # keep plants fully susceptible up to primary_day
 # as no infectious aphids haveentered system
-if(primary_day > sow_day + 1){
+if(primary_day > sow_day){
   P_S[(sow_day + 1):(primary_day-1)] <- Ptot
   P_I[(sow_day + 1):(primary_day-1)] <- 0
 }
@@ -192,52 +190,24 @@ if(primary_day > sow_day + 1){
 # if tau > primary_day we need more known initial conditions
 extra <- max(0, tau - primary_day)
 if(extra > 0){
-  start_day <- primary_day + 1
+  start_day <- primary_day
   end_day   <- min(N, primary_day + extra)
   if(start_day <= end_day){
     seed_days <- start_day:end_day
-
-############
-############
-#### Q #####
-############
-############
-              
-# keep P_S as Ptot?? 
-    P_S[seed_days] <- Ptot 
+    P_S[seed_days] <- Ptot  #keep as Ptot???
     P_I[seed_days] <- 0
   }
 }
 
-# remove plants after harvest
-if(harvest_day < N){
-  P_S[(harvest_day+1):N] <- 0
-  P_I[(harvest_day+1):N] <- 0
-}
-
 # aphid initial conditions
-if(primary_day > 1){
-  # zeros before primary_day
-  A_S[1:(primary_day-1)] <- 0
-  A_I[1:(primary_day-1)] <- 0
-}
-
-############
-############
-#### Q #####
-############
-############
+# zeros before primary_day
+A_S[1:(primary_day-1)] <- 0
+A_I[1:(primary_day-1)] <- 0
 
 # small immigration into field on primary_day
 A_obs <- round(runif(1, 2, 5))
 A_I[primary_day] <- sample(1:(A_obs-1), 1)
 A_S[primary_day] <- A_obs - A_I[primary_day]
-
-############
-############
-#### Q #####
-############
-############
 
 # need extra initial conditions if tau > primary_day
 if(extra > 0){
@@ -252,7 +222,7 @@ if(extra > 0){
 }
 
 # simulation
-for(t in (tau+1):(N-1)){
+for(t in tau:(N-1)){
   
   # plant dynamics
   if(t < harvest_day){
@@ -297,13 +267,6 @@ for(t in (tau+1):(N-1)){
   if(t >= harvest_day){
     P_S[t+1] <- 0
     P_I[t+1] <- 0
-
-############
-############
-#### Q #####
-############
-############
-              
     # do we choose to make aphids go to 0 here???
     # A_S[t+1] <- 0 
     # A_I[t+1] <- 0
@@ -391,14 +354,5 @@ p_susceptible_aphids <- ggplot(df, aes(day, A_S)) +
 (print(p_infected_aphids) + print(p_infected_plants))/ 
   (print(p_total_aphids_sep) + print(p_susceptible_aphids))
 
-############
-############
-#### Q #####
-############
-############
-
 # double check that Ptot is conserved during growing season
 all(P_I[sow_day:harvest_day] + P_S[sow_day:harvest_day] == Ptot)
-# I AM GETTING FALSE WHEN I RUN THIS
-# IF YOU CHECK THE VECTOR YOU CAN SEE THERE ARE TWO 0 ENTRIES!
-# WHY?
