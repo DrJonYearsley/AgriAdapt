@@ -4,7 +4,7 @@
 # transmission between spring barley and S. avenae.
 # =============================================================
 
-# Anywhere where I have a query or question I've labelled #### Q ####
+# anywhere where I have a query or question I've labelled #### Q ####
 
 ###########
 ###########
@@ -119,15 +119,15 @@ for(i in 1:N){
 }
 
 # parameters
-b_opt   <- 15.3
-T_opt   <- 20
-sigma_T <- 3.3
+b_opt   <- 5
+T_opt   <- 23
+sigma_T <- 5
 
 # sigma_SP + sigma_IP \leq 1 for well-defined P dynamics
-sigma_SP <- 0.62
-sigma_IP <- 0.31
-sigma_SA <- 0.56
-sigma_IA <- 0.53
+sigma_SP <- 0.22
+sigma_IP <- 0.61
+sigma_SA <- 0.36
+sigma_IA <- 0.73
 
 delta_P <- 0.9
 delta_A <- 0.87
@@ -255,8 +255,8 @@ P_I[sow_day] <- 0
 # keep plants fully susceptible up to primary_day
 # as no infectious aphids haveentered system
 if(primary_day > sow_day){
-  P_S[(sow_day + 1):(primary_day-1)] <- Ptot
-  P_I[(sow_day + 1):(primary_day-1)] <- 0
+  P_S[(sow_day + 1):(primary_day)] <- Ptot
+  P_I[(sow_day + 1):(primary_day)] <- 0
 }
 
 # if tau > primary_day we need more known initial conditions
@@ -265,7 +265,7 @@ if(extra > 0){
   start_day <- primary_day
   end_day   <- min(N, primary_day + extra)
   if(start_day <= end_day){
-    seed_days <- start_day:end_day
+    seed_days <- start_day:(end_day+1)
     
     ###########
     ###########
@@ -284,7 +284,7 @@ A_S[1:(primary_day-1)] <- 0
 A_I[1:(primary_day-1)] <- 0
 
 # small immigration into field on primary_day
-A_obs <- round(runif(1, 2, 5))
+A_obs <- round(runif(1, 2, 15))
 A_I[primary_day] <- sample(1:(A_obs-1), 1)
 A_S[primary_day] <- A_obs - A_I[primary_day]
 
@@ -293,7 +293,7 @@ if(extra > 0){
   start_day <- primary_day + 1
   end_day   <- min(N, primary_day + extra)
   if(start_day <= end_day){
-    seed_days <- start_day:end_day
+    seed_days <- start_day:(end_day+1)
     
     ###########
     ###########
@@ -302,8 +302,8 @@ if(extra > 0){
     ###########
     
     # small random counts???
-    A_S[seed_days] <- round(runif(length(seed_days), 1,5))
-    A_I[seed_days] <- round(runif(length(seed_days), 1,5))
+    A_S[seed_days] <- round(runif(length(seed_days), 1,15))
+    A_I[seed_days] <- round(runif(length(seed_days), 1,15))
   }
 }
 
