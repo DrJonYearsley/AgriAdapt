@@ -4,18 +4,40 @@
 # transmission between spring barley and S. avenae.
 # =============================================================
 
-# growing season:
+# I've labelled queries or questions as #### Q #### below
+# as I don't know if these are valid or justified
+
+############
+############
+#### Q #####
+############
+############
+
+# growing season approach?
 # sow day -> harvest day
 # plant dynamics only within this interval
+# 0 before and after
+
+############
+############
+#### Q #####
+############
+############
 
 # primary invasion/infection day: 
 # where A_I and/or A_S > 0 for first time (both non-zero for now)
 # primary invasion/infection abundance could be the first observed 
 # alate aphid count in the suction tower dataset for given year
 
+############
+############
+#### Q #####
+############
+############
+
 # aphids dynamics assumed to change past harvest day (A_S, A_I
 # can be >0 past harvest_day)
-# is this a fair assumption?
+# is this a fair assumption??
 
 rm(list = ls())
 
@@ -65,6 +87,14 @@ oakpark_ts <- meteo_oakpark %>%
 N <- nrow(oakpark_ts)
 Tseries <- oakpark_ts$meanT
 day <- 1:N
+
+############
+############
+#### Q #####
+############
+############
+
+# is this DD model okay for telescoping??
 
 # aphid DD parameters from 
 # https://ipm.ucanr.edu/PHENOLOGY/ma-english_grain_aphid.html
@@ -125,6 +155,14 @@ Phi_P <- numeric(N)
 sow_day     <- 32    # sow at start of Feb
 harvest_day <- 240   # harvest end of Aug
 
+############
+############
+#### Q #####
+############
+############
+
+# is this a good way of doing this below?
+
 # primary infection/invasion day between 10 and 40 days after sowing
 primary_day <- round(runif(1, sow_day + 10, sow_day + 40))
 
@@ -158,7 +196,15 @@ if(extra > 0){
   end_day   <- min(N, primary_day + extra)
   if(start_day <= end_day){
     seed_days <- start_day:end_day
-    P_S[seed_days] <- Ptot  #keep as Ptot???
+
+############
+############
+#### Q #####
+############
+############
+              
+# keep P_S as Ptot?? 
+    P_S[seed_days] <- Ptot 
     P_I[seed_days] <- 0
   }
 }
@@ -176,10 +222,22 @@ if(primary_day > 1){
   A_I[1:(primary_day-1)] <- 0
 }
 
+############
+############
+#### Q #####
+############
+############
+
 # small immigration into field on primary_day
 A_obs <- round(runif(1, 2, 5))
 A_I[primary_day] <- sample(1:(A_obs-1), 1)
 A_S[primary_day] <- A_obs - A_I[primary_day]
+
+############
+############
+#### Q #####
+############
+############
 
 # need extra initial conditions if tau > primary_day
 if(extra > 0){
@@ -239,6 +297,13 @@ for(t in (tau+1):(N-1)){
   if(t >= harvest_day){
     P_S[t+1] <- 0
     P_I[t+1] <- 0
+
+############
+############
+#### Q #####
+############
+############
+              
     # do we choose to make aphids go to 0 here???
     # A_S[t+1] <- 0 
     # A_I[t+1] <- 0
@@ -325,6 +390,12 @@ p_susceptible_aphids <- ggplot(df, aes(day, A_S)) +
 
 (print(p_infected_aphids) + print(p_infected_plants))/ 
   (print(p_total_aphids_sep) + print(p_susceptible_aphids))
+
+############
+############
+#### Q #####
+############
+############
 
 # double check that Ptot is conserved during growing season
 all(P_I[sow_day:harvest_day] + P_S[sow_day:harvest_day] == Ptot)
