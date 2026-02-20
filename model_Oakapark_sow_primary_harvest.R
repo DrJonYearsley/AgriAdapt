@@ -167,6 +167,51 @@ b_S <- b_opt * exp(-(Tseries - T_opt)^2 / (2 * sigma_T^2))
 
 # so daily nymphs per female at temperature T is N/S???
 
+############# 
+# when we have the data to fit b_S use this code:
+# fecundity data
+# T <- c(10.0, 15.0, 20.0, 25.0, 30.0, 32.5)
+# b_S <- c(1.3, 1.94, 3.43, 5.95, 2.89, 1.16)
+# data <- data.frame(T, b_S)
+
+# Fit Gaussian function using nls
+# start_list <- list(
+#   b_opt = max(b_S),
+#   T_opt = T[which.max(b_S)],
+#   sigma_T = 5
+# )
+
+# fit <- nls(b_S ~ b_opt * exp( - (T - T_opt)^2 / (2 * sigma_T^2) ),
+#            data = data,
+#            start = start_list,
+#            control = nls.control(maxiter = 100))
+
+# Create smooth curve for plotting
+# T_fit <- seq(min(T), max(T), length.out = 200)
+# b_fit <- predict(fit, newdata = data.frame(T = T_fit))
+# fit_data <- data.frame(T_fit, b_fit)
+
+# data_points <- data.frame(T = T, b = b_S, Type = "Average nymphs/female")
+# fit_curve <- data.frame(T = T_fit, b = b_fit, Type = "b_S(T)")
+
+# plot_data <- rbind(data_points, fit_curve)
+
+# Plot with legend
+# ggplot(plot_data, aes(x = T, y = b, color = Type)) +
+#   geom_point(data = subset(plot_data, Type == "Average nymphs/female"), size = 3) +
+#   geom_line(data = subset(plot_data, Type == "b_S(T)"), size = 1.2) +
+#   scale_color_manual(
+#     values = c("Average nymphs/female" = "black", "b_S(T)" = "darkgrey"),
+#     labels = c("Average nymphs/female", expression(b[S](T)))
+#   ) +
+#   labs(
+#     x = "Temperature (°C)",
+#     y = "Fecundity",
+#     color = ""
+#   ) +
+#   theme_minimal() +
+#   theme(legend.position = "bottom")
+
 # state variables
 P_I  <- numeric(N)
 P_S  <- numeric(N)
@@ -221,13 +266,13 @@ if(extra > 0){
   end_day   <- min(N, primary_day + extra)
   if(start_day <= end_day){
     seed_days <- start_day:end_day
-
-###########
-###########
-#### Q ####
-###########
-###########
-              
+    
+    ###########
+    ###########
+    #### Q ####
+    ###########
+    ###########
+    
     P_S[seed_days] <- Ptot  #keep as Ptot???
     P_I[seed_days] <- 0
   }
@@ -249,13 +294,13 @@ if(extra > 0){
   end_day   <- min(N, primary_day + extra)
   if(start_day <= end_day){
     seed_days <- start_day:end_day
-
-###########
-###########
-#### Q ####
-###########
-###########
-              
+    
+    ###########
+    ###########
+    #### Q ####
+    ###########
+    ###########
+    
     # small random counts???
     A_S[seed_days] <- round(runif(length(seed_days), 1,5))
     A_I[seed_days] <- round(runif(length(seed_days), 1,5))
@@ -268,13 +313,13 @@ for(t in tau:(N-1)){
   # plant dynamics
   if(t < harvest_day){
     
-      denom <- A_S[t - tau_P] + A_I[t - tau_P]
-      # if denom==0 then infection pressure is zero => Phi_P = 1
-      if(denom > 0){
-        Phi_P[t] <- exp(-delta_P * A_I[t - tau_P] / denom)
-      } else {
-        Phi_P[t] <- 1
-      }
+    denom <- A_S[t - tau_P] + A_I[t - tau_P]
+    # if denom==0 then infection pressure is zero => Phi_P = 1
+    if(denom > 0){
+      Phi_P[t] <- exp(-delta_P * A_I[t - tau_P] / denom)
+    } else {
+      Phi_P[t] <- 1
+    }
     
     P_I[t+1] <- (1 - Phi_P[t]) * sigma_SP * P_S[t] + sigma_IP * P_I[t]
     P_S[t+1] <- Ptot - P_I[t+1]
@@ -308,13 +353,13 @@ for(t in tau:(N-1)){
   if(t >= harvest_day){
     P_S[t+1] <- 0
     P_I[t+1] <- 0
-
-###########
-###########
-#### Q ####
-###########
-###########
-              
+    
+    ###########
+    ###########
+    #### Q ####
+    ###########
+    ###########
+    
     # do we choose to make aphids go to 0 here???
     # A_S[t+1] <- 0 
     # A_I[t+1] <- 0
@@ -405,4 +450,3 @@ p_susceptible_aphids <- ggplot(df, aes(day, A_S)) +
 # double check that Ptot is conserved during growing season
 # if TRUE then all is okay
 all(P_I[sow_day:harvest_day] + P_S[sow_day:harvest_day] == Ptot)
-
