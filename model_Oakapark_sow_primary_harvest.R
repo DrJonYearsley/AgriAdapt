@@ -1,16 +1,21 @@
-# proposed model for spring barley and S. avenae
-# with start date 1st Jan, end date 31st Dec
+# =============================================================
+# A discrete-time temperature-dependent host-vector model of 
+# persistent virus dynamics; with application to BYDV 
+# transmission between spring barley and S. avenae.
+# =============================================================
 
 # growing season:
 # sow day -> harvest day
 # plant dynamics only within this interval
 
 # primary invasion/infection day: 
-# where A_I > 0 for first time
-# primary invasion/infection count could be the first observed alate 
-# aphid in suction tower dataset of given year
-# aphids can grow and decline past harvest day?
+# where A_I and/or A_S > 0 for first time (both non-zero for now)
+# primary invasion/infection abundance could be the first observed 
+# alate aphid count in the suction tower dataset for given year
 
+# aphids dynamics assumed to change past harvest day (A_S, A_I
+# can be >0 past harvest_day)
+# is this a fair assumption?
 
 rm(list = ls())
 
@@ -25,15 +30,10 @@ year_select <- sample(2010:2024, 1)
 # reset to your own work directory where temp files are
 setwd("C:/Users/blake/Desktop/R_Code")
 
-# load temp file for year_select
+# load temp file for selected year
 load(paste0("C:/Users/blake/Desktop/R_Code/meteo_minmaxtemps_", 
             year_select, ".RData"))
 message("year chosen: ", year_select)
-
-# aphid DD parameters gotten from 
-# https://ipm.ucanr.edu/PHENOLOGY/ma-english_grain_aphid.html
-temp_baseline  <- 4
-temp_threshold <- 150
 
 # Oakpark temperature data
 tower_locations <- data.frame(
@@ -42,11 +42,13 @@ tower_locations <- data.frame(
   northings = c(101150, 179267)
 )
 
-# Euclidean distance used
-stations <- meteo %>% distinct(east, north) %>%
+# Euclidean distance used to select closest station
+stations <- meteo %>% 
+  distinct(east, north) %>%
   rowwise() %>%
   mutate(dist_oakpark = sqrt((east - tower_locations$eastings[2])^2 +
-                               (north - tower_locations$northings[2])^2)) %>% ungroup()
+                               (north - tower_locations$northings[2])^2)) %>% 
+  ungroup()
 
 closest_to_oakpark <- stations %>% slice_min(dist_oakpark, n = 1)
 
@@ -55,7 +57,7 @@ meteo_oakpark <- meteo %>%
   filter(year(Dates) == year_select) %>%
   arrange(Dates)
 
-# mean daily temp data
+# mean daily temperature time series
 oakpark_ts <- meteo_oakpark %>%
   mutate(meanT = (TX + TN)/2) %>%
   select(Dates, meanT)
@@ -64,60 +66,51 @@ N <- nrow(oakpark_ts)
 Tseries <- oakpark_ts$meanT
 day <- 1:N
 
+# aphid DD parameters from 
+# https://ipm.ucanr.edu/PHENOLOGY/ma-english_grain_aphid.html
+temp_baseline  <- 4
+temp_threshold <- 150
+
 # degree day model
 meteo_oakpark$tavg <- (meteo_oakpark$TX + meteo_oakpark$TN)/2
-meteo_oakpark$dd <- pmax(meteo_oakpark$tavg - temp_baseline, 0)
+meteo_oakpark$dd   <- pmax(meteo_oakpark$tavg - temp_baseline, 0)
 cum_gdd <- cumsum(meteo_oakpark$dd)
 
-# emergence times, given that start times known
-# is this good enough for telescoping,
-# or is this valid only for egg laying (overwintering/diapause)?
-
+# aphid adult emergence
 emerge_map <- vector("list", N)
+max_delay  <- 0
+
 for(i in 1:N){
   emerge_idx <- which(cum_gdd >= cum_gdd[i] + temp_threshold)[1]
   if(!is.na(emerge_idx)){
     emerge_map[[emerge_idx]] <- c(emerge_map[[emerge_idx]], i)
+    # get max start -> emergence time
+    max_delay <- max(max_delay, emerge_idx - i)
   }
 }
 
 # parameters
-b_opt   <- 11.3
-T_opt   <- 30.1
-sigma_T <- 8.3
+b_opt   <- 15.3
+T_opt   <- 20
+sigma_T <- 3.3
 
-# sigma_SP + sigma_IP \leq 1
-# so P_I and P_S are well-defined
-sigma_SP <- 0.12
+# sigma_SP + sigma_IP \leq 1 for well-defined P dynamics
+sigma_SP <- 0.62
 sigma_IP <- 0.31
-sigma_SA <- 0.76
-sigma_IA <- 0.93
+sigma_SA <- 0.56
+sigma_IA <- 0.53
 
-delta_P <- 1.1
-delta_A <- 6.9
+delta_P <- 0.9
+delta_A <- 0.87
 
 tau_P <- 7
 tau_A <- 9
 
-Ptot  <- 5200
-Gamma <- 330
+Ptot  <- 1000
+Gamma <- 100
 
 # fecundity
 b_S <- b_opt * exp(-(Tseries - T_opt)^2 / (2 * sigma_T^2))
-
-df_bS <- data.frame(
-  day = day,
-  b_S = b_S
-)
-
-ggplot(df_bS, aes(x = day, y = b_S)) +
-  geom_line(color = "darkred", linewidth = 1) +
-  theme_minimal() +
-  labs(
-    x = "Day of Year",
-    y = "Fecundity",
-    title = "",
-  )
 
 # state variables
 P_I  <- numeric(N)
@@ -129,81 +122,126 @@ Phi_A <- numeric(N)
 Phi_P <- numeric(N)
 
 # growing season
-sow_day     <- 32    # start of Feb
-harvest_day <- 240   # end of Aug
+sow_day     <- 32    # sow at start of Feb
+harvest_day <- 240   # harvest end of Aug
 
-# primary infection day between 10 and 40 days of sow day
-# between when leaves are visible to stem elongation
+# primary infection/invasion day between 10 and 40 days after sowing
 primary_day <- round(runif(1, sow_day + 10, sow_day + 40))
 
+# get max time delay, so can initialise model
+tau <- max(max_delay, tau_P, tau_A)
+
+# we need to know tau initial conditions a priori
+
+# plant initial conditions
+if(sow_day > 1){
+  # zero before sow_day
+  P_S[1:(sow_day-1)] <- 0
+  P_I[1:(sow_day-1)] <- 0
+}
+
+# Ptot susceptible plants only at sow_day
+P_S[sow_day] <- Ptot
+P_I[sow_day] <- 0
+
+# keep plants fully susceptible up to primary_day
+# as no infectious aphids haveentered system
+if(primary_day > sow_day + 1){
+  P_S[(sow_day + 1):(primary_day-1)] <- Ptot
+  P_I[(sow_day + 1):(primary_day-1)] <- 0
+}
+
+# if tau > primary_day we need more known initial conditions
+extra <- max(0, tau - primary_day)
+if(extra > 0){
+  start_day <- primary_day + 1
+  end_day   <- min(N, primary_day + extra)
+  if(start_day <= end_day){
+    seed_days <- start_day:end_day
+    P_S[seed_days] <- Ptot  #keep as Ptot???
+    P_I[seed_days] <- 0
+  }
+}
+
+# remove plants after harvest
+if(harvest_day < N){
+  P_S[(harvest_day+1):N] <- 0
+  P_I[(harvest_day+1):N] <- 0
+}
+
+# aphid initial conditions
+if(primary_day > 1){
+  # zeros before primary_day
+  A_S[1:(primary_day-1)] <- 0
+  A_I[1:(primary_day-1)] <- 0
+}
+
+# small immigration into field on primary_day
+A_obs <- round(runif(1, 2, 5))
+A_I[primary_day] <- sample(1:(A_obs-1), 1)
+A_S[primary_day] <- A_obs - A_I[primary_day]
+
+# need extra initial conditions if tau > primary_day
+if(extra > 0){
+  start_day <- primary_day + 1
+  end_day   <- min(N, primary_day + extra)
+  if(start_day <= end_day){
+    seed_days <- start_day:end_day
+    # small random counts???
+    A_S[seed_days] <- round(runif(length(seed_days), 1,5))
+    A_I[seed_days] <- round(runif(length(seed_days), 1,5))
+  }
+}
+
 # simulation
-for(t in 1:(N-1)){
+for(t in (tau+1):(N-1)){
   
-  # days before sowing we know everything is ~0
-  if(t < sow_day){
-    P_S[t+1] <- 0
-    P_I[t+1] <- 0
-    A_S[t+1] <- 0
-    A_I[t+1] <- 0
-    r[t]     <- 0
-    Phi_P[t] <- 1
-    Phi_A[t] <- 1
-    next
-  }
-  
-  # initialise crops on sow day (no infectious plants, only susceptible)
-  if(t == sow_day){
-    P_S[t] <- Ptot
-    P_I[t] <- 0
-  }
-  
-  # plant dynamics within growing season
-  if(t >= sow_day && t < harvest_day){
-    idxP <- ifelse(t - tau_P > 0, t - tau_P, NA)
-    if(is.na(idxP) || (A_S[idxP] + A_I[idxP]) == 0){
-      Phi_P[t] <- 1
-    } else {
-      Phi_P[t] <- exp(-delta_P * A_I[idxP] / (A_S[idxP] + A_I[idxP]))
-    }
+  # plant dynamics
+  if(t < harvest_day){
+    
+      denom <- A_S[t - tau_P] + A_I[t - tau_P]
+      # if denom==0 then infection pressure is zero => Phi_P = 1
+      if(denom > 0){
+        Phi_P[t] <- exp(-delta_P * A_I[t - tau_P] / denom)
+      } else {
+        Phi_P[t] <- 1
+      }
     
     P_I[t+1] <- (1 - Phi_P[t]) * sigma_SP * P_S[t] + sigma_IP * P_I[t]
     P_S[t+1] <- Ptot - P_I[t+1]
   }
   
-  # primary infection
-  if(t == primary_day){
-    A_obs <- round(runif(1, 2, 40))
-    A_I[t] <- sample(1:(A_obs-1), 1)   # at least 1 infectious
-    A_S[t] <- A_obs - A_I[t]           # at least 1 susceptible
-  }
-  
   # aphid dynamics
-  if(t >= primary_day){
+  if(t > primary_day){
     
     # r is sum of delayed fecundity x abundance 
     # for aphids that have emerged as adults on day t
-    
-    r_t <- 0
-    if(!is.null(emerge_map[[t]]) && length(emerge_map[[t]]) > 0){
-      r_t <- sum(b_S[emerge_map[[t]]] * A_S[emerge_map[[t]]])
-    }
-    r[t] <- r_t
-    
-    idxA <- ifelse(t - tau_A > 0, t - tau_A, NA)
-    if(is.na(idxA)){
-      Phi_A[t] <- 1
+    if(length(emerge_map[[t]]) > 0){
+      # only sum over emergence indices that are >=1 and <=N, i.e. within year
+      idxs <- emerge_map[[t]]
+      idxs <- idxs[idxs >= 1 & idxs <= N]
+      if(length(idxs) > 0){
+        r[t] <- sum(b_S[idxs] * A_S[idxs])
+      } else {
+        r[t] <- 0
+      }
     } else {
-      Phi_A[t] <- exp(-delta_A * P_I[idxA] / Ptot)
+      r[t] <- 0
     }
+    
+    Phi_A[t] <- exp(-delta_A * P_I[t - tau_A] / Ptot)
     
     A_I[t+1] <- (1 - Phi_A[t]) * sigma_SA * A_S[t] + sigma_IA * A_I[t]
     A_S[t+1] <- r[t] * exp(-(A_S[t] + A_I[t]) / Gamma) + Phi_A[t] * sigma_SA * A_S[t]
   }
   
-  # remove plants on harvest day
+  # harvest
   if(t >= harvest_day){
     P_S[t+1] <- 0
     P_I[t+1] <- 0
+    # do we choose to make aphids go to 0 here???
+    # A_S[t+1] <- 0 
+    # A_I[t+1] <- 0
   }
 }
 
@@ -235,48 +273,61 @@ vlines <- data.frame(
 
 p_plants <- ggplot(df_plants, aes(day, count, colour = state)) +
   geom_line(linewidth = 1) +
-  geom_vline(data = vlines, aes(xintercept = day), linetype = "dashed", colour = "black") +
+  geom_vline(data = vlines, aes(xintercept = day),
+             linetype = "dashed", colour = "black") +
   theme_minimal() +
   labs(title = "SI Plant Dynamics")
 
 p_aphids <- ggplot(df_aphids, aes(day, count, colour = state)) +
   geom_line(linewidth = 1) +
-  geom_vline(data = vlines, aes(xintercept = day), linetype = "dashed", colour = "black") +
+  geom_vline(data = vlines, aes(xintercept = day),
+             linetype = "dashed", colour = "black") +
   theme_minimal() +
   labs(title = "SI Aphid Dynamics")
 
 p_total_aphids <- ggplot(df, aes(day, total_aphids)) +
   geom_line(linewidth = 1) +
-  geom_vline(data = vlines, aes(xintercept = day), linetype = "dashed", colour = "black") +
+  geom_vline(data = vlines, aes(xintercept = day),
+             linetype = "dashed", colour = "black") +
   theme_minimal() +
   labs(y = "count", title = "Total Aphid Dynamics")
 
-p_r <- ggplot(df, aes(day, r)) +
-  geom_line(linewidth = 1) +
-  geom_vline(data = vlines, aes(xintercept = day), linetype = "dashed", colour = "black") +
-  theme_minimal() +
-  labs(title = "r")
-
-SI_dynamics <- p_aphids / p_plants
-SI_dynamics | p_total_aphids
+(p_aphids / p_plants) | p_total_aphids
 message("year chosen: ", year_select)
 
-#p_infected_plants <- ggplot(df, aes(day, P_I)) +
-#  geom_line(linewidth = 1, colour = "darkblue") +
-#  geom_vline(data = vlines, aes(xintercept = day), linetype = "dashed", colour = "black") +
-#  theme_minimal() +
-#  labs(title = "Infected Plant Dynamics", y = "Count", x = "Day")
+p_infected_aphids <- ggplot(df, aes(day, A_I)) +
+  geom_line(colour = "darkblue", linewidth = 1) +
+  geom_vline(data = vlines, aes(xintercept = day),
+             linetype = "dashed", colour = "black") +
+  theme_minimal() +
+  labs(y = "count", title = "Infected Aphids")
 
-#p_susceptible_aphids <- ggplot(df, aes(day, A_S)) +
-#  geom_line(linewidth = 1, colour = "gold") +
-#  geom_vline(data = vlines, aes(xintercept = day), linetype = "dashed", colour = "black") +
-#  theme_minimal() +
-#  labs(title = "Susceptible Aphid Dynamics", y = "Count", x = "Day")
+p_infected_plants <- ggplot(df, aes(day, P_I)) +
+  geom_line(colour = "darkblue", linewidth = 1) +
+  geom_vline(data = vlines, aes(xintercept = day),
+             linetype = "dashed", colour = "black") +
+  theme_minimal() +
+  labs(y = "count", title = "Infected Plants")
 
-#p_infected_aphids <- ggplot(df, aes(day, A_I)) +
-#  geom_line(linewidth = 1, colour = "darkblue") +
-#  geom_vline(data = vlines, aes(xintercept = day), linetype = "dashed", colour = "black") +
-#  theme_minimal() +
-#  labs(title = "Infected Aphid Dynamics", y = "Count", x = "Day")
+p_total_aphids_sep <- ggplot(df, aes(day, total_aphids)) +
+  geom_line(colour = "black", linewidth = 1) +
+  geom_vline(data = vlines, aes(xintercept = day),
+             linetype = "dashed", colour = "black") +
+  theme_minimal() +
+  labs(y = "count", title = "Total Aphids")
 
-#p_infected_plants / p_susceptible_aphids / p_infected_aphids
+p_susceptible_aphids <- ggplot(df, aes(day, A_S)) +
+  geom_line(colour = "gold", linewidth = 1) +
+  geom_vline(data = vlines, aes(xintercept = day),
+             linetype = "dashed", colour = "black") +
+  theme_minimal() +
+  labs(y = "count", title = "Susceptible Aphids")
+
+(print(p_infected_aphids) + print(p_infected_plants))/ 
+  (print(p_total_aphids_sep) + print(p_susceptible_aphids))
+
+# double check that Ptot is conserved during growing season
+all(P_I[sow_day:harvest_day] + P_S[sow_day:harvest_day] == Ptot)
+# I AM GETTING FALSE WHEN I RUN THIS
+# IF YOU CHECK THE VECTOR YOU CAN SEE THERE ARE TWO 0 ENTRIES!
+# WHY?
