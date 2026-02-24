@@ -46,7 +46,8 @@ library(tidyr)
 library(lubridate)
 library(patchwork)
 
-year_select <- sample(2010:2024, 1)
+#year_select <- sample(2010:2024, 1)
+year_select <- 2024
 
 # reset to your own work directory where temp files are
 setwd("C:/Users/blake/Desktop/R_Code")
@@ -119,27 +120,20 @@ for(i in 1:N){
 }
 
 # parameters
-b_opt   <- 5
-T_opt   <- 23
-sigma_T <- 5
-
 # sigma_SP + sigma_IP \leq 1 for well-defined P dynamics
-sigma_SP <- 0.22
-sigma_IP <- 0.61
-sigma_SA <- 0.36
-sigma_IA <- 0.73
+sigma_SP <- round(runif(1,0.1,0.9),1)
+sigma_IP <- round(runif(1,0.1,0.9),1)
+sigma_SA <- round(runif(1,0.1,0.9),1)
+sigma_IA <- round(runif(1,0.1,0.9),1)
 
-delta_P <- 0.9
-delta_A <- 0.87
+delta_P <- round(runif(1,0.1,3),1)
+delta_A <- round(runif(1,0.1,3),1)
 
 tau_P <- 7
 tau_A <- 9
 
-Ptot  <- 1000
-Gamma <- 100
-
-# fecundity
-b_S <- b_opt * exp(-(Tseries - T_opt)^2 / (2 * sigma_T^2))
+Ptot  <- 50000
+Gamma <- round(runif(1,50,5000),1)
 
 ###########
 ###########
@@ -167,50 +161,58 @@ b_S <- b_opt * exp(-(Tseries - T_opt)^2 / (2 * sigma_T^2))
 
 # so daily nymphs per female at temperature T is N/S???
 
-############# 
-# when we have the data to fit b_S use this code:
 # fecundity data
-# T <- c(10.0, 15.0, 20.0, 25.0, 30.0, 32.5)
-# b_S <- c(1.3, 1.94, 3.43, 5.95, 2.89, 1.16)
-# data <- data.frame(T, b_S)
+Temp <- c(10.0, 15.0, 20.0, 30.0)
+b_S_data <- c(33/17, 46/22, 61/22, 33/19)
+data <- data.frame(Temp, b_S_data)
 
 # Fit Gaussian function using nls
-# start_list <- list(
-#   b_opt = max(b_S),
-#   T_opt = T[which.max(b_S)],
-#   sigma_T = 5
-# )
+start_list <- list(
+   b_opt = 1,
+   T_opt = 24,
+   sigma_T = 3
+ )
 
-# fit <- nls(b_S ~ b_opt * exp( - (T - T_opt)^2 / (2 * sigma_T^2) ),
-#            data = data,
-#            start = start_list,
-#            control = nls.control(maxiter = 100))
+fit <- nls(b_S_data ~ b_opt * exp( - (Temp - T_opt)^2 / (2 * sigma_T^2) ),
+            data = data,
+            start = start_list,
+            control = nls.control(maxiter = 10000))
 
 # Create smooth curve for plotting
-# T_fit <- seq(min(T), max(T), length.out = 200)
-# b_fit <- predict(fit, newdata = data.frame(T = T_fit))
-# fit_data <- data.frame(T_fit, b_fit)
+T_fit <- seq(min(Temp), max(Temp), length.out = 200)
+b_fit <- predict(fit, newdata = data.frame(Temp = T_fit))
+fit_data <- data.frame(T_fit, b_fit)
 
-# data_points <- data.frame(T = T, b = b_S, Type = "Average nymphs/female")
-# fit_curve <- data.frame(T = T_fit, b = b_fit, Type = "b_S(T)")
+data_points <- data.frame(Temp = Temp, b = b_S_data, Type = "Average nymphs/female")
+fit_curve <- data.frame(Temp = T_fit, b = b_fit, Type = "b_S(T)")
 
-# plot_data <- rbind(data_points, fit_curve)
+plot_data <- rbind(data_points, fit_curve)
 
 # Plot with legend
-# ggplot(plot_data, aes(x = T, y = b, color = Type)) +
-#   geom_point(data = subset(plot_data, Type == "Average nymphs/female"), size = 3) +
-#   geom_line(data = subset(plot_data, Type == "b_S(T)"), size = 1.2) +
-#   scale_color_manual(
-#     values = c("Average nymphs/female" = "black", "b_S(T)" = "darkgrey"),
-#     labels = c("Average nymphs/female", expression(b[S](T)))
-#   ) +
-#   labs(
-#     x = "Temperature (°C)",
-#     y = "Fecundity",
-#     color = ""
-#   ) +
-#   theme_minimal() +
-#   theme(legend.position = "bottom")
+ggplot(plot_data, aes(x = Temp, y = b, color = Type)) +
+ geom_point(data = subset(plot_data, Type == "Average nymphs/female"), size = 3) +
+ geom_line(data = subset(plot_data, Type == "b_S(T)"), size = 1.2) +
+ scale_color_manual(
+   values = c("Average nymphs/female" = "black", "b_S(T)" = "darkgrey"),
+   labels = c("Average nymphs/female", expression(b[S](T)))
+ ) +
+ labs(
+   x = "Temperature (°C)",
+   y = "Fecundity",
+   color = ""
+ ) +
+ theme_minimal() +
+ theme(legend.position = "bottom")
+
+b_s_params <- coef(fit)
+b_s_params <- as.data.frame(b_s_params)
+
+b_opt   <- b_s_params[1,]
+T_opt   <- b_s_params[2,]
+sigma_T <- b_s_params[3,]
+
+# fecundity
+b_S <- b_opt * exp(-(Tseries - T_opt)^2 / (2 * sigma_T^2))
 
 # state variables
 P_I  <- numeric(N)
@@ -234,10 +236,16 @@ harvest_day <- 240   # harvest end of Aug
 # is this a good way of doing this?
 
 # primary infection/invasion day between 10 and 40 days after sowing
+# between when plants have emerged and stem elongation occurs
 primary_day <- round(runif(1, sow_day + 10, sow_day + 40))
 
 # get max time delay, so can initialise model
 tau <- max(max_delay, tau_P, tau_A)
+
+###########
+#### Q ####
+###########
+###########
 
 # we need to know tau initial conditions a priori
 
@@ -253,7 +261,7 @@ P_S[sow_day] <- Ptot
 P_I[sow_day] <- 0
 
 # keep plants fully susceptible up to primary_day
-# as no infectious aphids haveentered system
+# as no infectious aphids have entered system
 if(primary_day > sow_day){
   P_S[(sow_day + 1):(primary_day)] <- Ptot
   P_I[(sow_day + 1):(primary_day)] <- 0
@@ -273,8 +281,14 @@ if(extra > 0){
     ###########
     ###########
     
-    P_S[seed_days] <- Ptot  #keep as Ptot???
+    P_S[seed_days] <- Ptot  
     P_I[seed_days] <- 0
+    
+    # keep P_S =  Ptot and P_I = 0??? 
+    # or we could randomly distribute densities 
+    # for P_I and P_S so P_I + P_S = Ptot:
+    #P_S[seed_days] <- sample(1:Ptot, length(seed_days))
+    #P_I[seed_days] <- Ptot - P_S[seed_days]
   }
 }
 
@@ -284,7 +298,7 @@ A_S[1:(primary_day-1)] <- 0
 A_I[1:(primary_day-1)] <- 0
 
 # small immigration into field on primary_day
-A_obs <- round(runif(1, 2, 15))
+A_obs <- round(runif(1, 2, 4))
 A_I[primary_day] <- sample(1:(A_obs-1), 1)
 A_S[primary_day] <- A_obs - A_I[primary_day]
 
@@ -335,7 +349,7 @@ for(t in tau:(N-1)){
       idxs <- emerge_map[[t]]
       idxs <- idxs[idxs >= 1 & idxs <= N]
       if(length(idxs) > 0){
-        r[t] <- sum(b_S[idxs] * A_S[idxs])
+        r[t] <- sum(b_S[idxs] * (A_S[idxs]+A_I[idxs]))
       } else {
         r[t] <- 0
       }
@@ -444,9 +458,10 @@ p_susceptible_aphids <- ggplot(df, aes(day, A_S)) +
   theme_minimal() +
   labs(y = "count", title = "Susceptible Aphids")
 
-(print(p_infected_aphids) + print(p_infected_plants))/ 
-  (print(p_total_aphids_sep) + print(p_susceptible_aphids))
+(p_infected_aphids + p_plants)/ 
+  (p_total_aphids_sep + p_susceptible_aphids)
 
 # double check that Ptot is conserved during growing season
 # if TRUE then all is okay
 all(P_I[sow_day:harvest_day] + P_S[sow_day:harvest_day] == Ptot)
+year_select
