@@ -120,7 +120,15 @@ for(i in 1:N){
 }
 
 # parameters
+
+###########
+###########
+#### Q ####
+###########
+###########
+
 # sigma_SP + sigma_IP \leq 1 for well-defined P dynamics
+# setting these lower seems to cause densities to blow up for some reason:
 sigma_SP <- round(runif(1,0.1,0.9),1)
 sigma_IP <- round(runif(1,0.1,0.9),1)
 sigma_SA <- round(runif(1,0.1,0.9),1)
@@ -129,9 +137,11 @@ sigma_IA <- round(runif(1,0.1,0.9),1)
 delta_P <- round(runif(1,0.1,3),1)
 delta_A <- round(runif(1,0.1,3),1)
 
+# these can be easily gotten from literature
 tau_P <- 7
 tau_A <- 9
 
+# what is the scale of planting?
 Ptot  <- 50000
 Gamma <- round(runif(1,50,5000),1)
 
@@ -349,6 +359,16 @@ for(t in tau:(N-1)){
       idxs <- emerge_map[[t]]
       idxs <- idxs[idxs >= 1 & idxs <= N]
       if(length(idxs) > 0){
+
+###########
+###########
+#### Q ####
+###########
+###########
+
+# fecundity x (infected + susceptible)
+# assuming that infected and susceptible aphids are reproducing (infection has no effect)
+                  
         r[t] <- sum(b_S[idxs] * (A_S[idxs]+A_I[idxs]))
       } else {
         r[t] <- 0
@@ -465,3 +485,4 @@ p_susceptible_aphids <- ggplot(df, aes(day, A_S)) +
 # if TRUE then all is okay
 all(P_I[sow_day:harvest_day] + P_S[sow_day:harvest_day] == Ptot)
 year_select
+
